@@ -179,11 +179,14 @@ void PIXL_Texture::draw(int x=0, int y=0)
  */
 class PIXL_Canvas {
 	public:
-		PIXL_Canvas();
+		PIXL_Canvas(int w, int h);
 		~PIXL_Canvas();
 		int getWidth() { return width; }
 		int getHeight() { return height; }
+		cairo_t* getContext() { return context; }
 		void blit();
+		void flush() { cairosdl_surface_flush(canvas); }
+		void* getBuffer() { return sdlsurf->pixels; }
 	private:
 		SDL_Surface *sdlsurf;
 		cairo_surface_t *canvas;
@@ -195,7 +198,7 @@ class PIXL_Canvas {
 /**
  * @brief Canvas class constructor
  */
-PIXL_Canvas::PIXL_Canvas()
+PIXL_Canvas::PIXL_Canvas(int w, int h): width(w), height(h)
 {
 	sdlsurf = SDL_CreateRGBSurface( 0, width, height, 32,
 									CAIROSDL_RMASK,
@@ -232,7 +235,7 @@ class PIXL_Sprite {
  */
 class PIXL_Text {
 	public:
-		PIXL_Text (const FcChar8 *f);
+		PIXL_Text(PIXL_Canvas* c, const char* f, unsigned int s);
 		virtual ~PIXL_Text ();
 		void setSize(unsigned int s) { font_size=s; }
 		void draw();
@@ -242,13 +245,13 @@ class PIXL_Text {
 		FcConfig *fc; //para checkear si existe fuente
 		FcBlanks *blanks; //para errores de fuentes
 		FcPattern *pattern;
-		cairo_t* context; //! CHECKEAR ESTO (deberia integrarse con PIXL_Canvas)
+		cairo_t* context; 
 		PangoLayout *layout;
 		PangoFontDescription *font_description;
 		int count;
 };
 
-PIXL_Text::PIXL_Text(const FcChar8 *f):font_name(f)
+PIXL_Text::PIXL_Text(PIXL_Canvas* c, const char* f, unsigned int s): context(c->getContext()), font_name((const FcChar8*)f), font_size(s)
 {
 	fc = FcConfigGetCurrent(); //para checkear si existe fuente
 	blanks = FcBlanksCreate(); //para errores de fuentes
@@ -258,22 +261,21 @@ PIXL_Text::PIXL_Text(const FcChar8 *f):font_name(f)
 	}
 	pattern = FcFreeTypeQuery(font_name , 0, blanks, &count); //obtengo el pattern
 
-	layout = pango_cairo_create_layout (context); //creo layout de pango para el texto
+	layout = pango_cairo_create_layout(context); //creo layout de pango para el texto
 	font_description = pango_fc_font_description_from_pattern(pattern, 0); //le paso el pattern a pango
 
 	pango_font_description_set_size(font_description, font_size*PANGO_SCALE); //seteo tamanio de la fuente
-	pango_layout_set_font_description (layout, font_description); //seteo la fuente a usar en el layout
+	pango_layout_set_font_description(layout, font_description); //seteo la fuente a usar en el layout
 
 	//cairo_set_source_rgb (context, 0.0, 0.0, 0.0);
 	//cairo_move_to (context, 300.0, 50.0);
 	//pango_cairo_show_layout (context, layout);
-
-	// para el destructor
-	//g_object_unref (layout);
-	//pango_font_description_free (font_description);
 }
 
-PIXL_Text::~PIXL_Text(){}
+PIXL_Text::~PIXL_Text(){
+	g_object_unref(layout);
+	pango_font_description_free(font_description);
+}
 
 
 /**
@@ -466,20 +468,16 @@ int main(int argc, const char *argv[])
 
 /*****************************************************************************/
 /*****************************************************************************/
-//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-std::stringstream mytext;
-SDL_Surface *sdlsurf = SDL_CreateRGBSurface (
-		0, 640, 480, 32,//!HACK HACK HACK
-		//0, screen->w, screen->h, 32,
-		CAIROSDL_RMASK,
-		CAIROSDL_GMASK,
-		CAIROSDL_BMASK,
-		CAIROSDL_AMASK );
-cairo_surface_t *cairosurf = cairosdl_surface_create(sdlsurf);
-cairo_t* cr = cairo_create(cairosurf);
+std::stringstream mytext2;
 
+PIXL_Canvas *mycanvas = new PIXL_Canvas(640, 480);
+cairo_t *cr = mycanvas->getContext();
+
+PIXL_Text *mytext = new PIXL_Text(mycanvas, "fonts/ProggyTiny.ttf", 12);
+
+/*****************/
 /*** FONT SHIT ***/
+/*****************/
 FcConfig *fc = FcConfigGetCurrent(); //para checkear si existe fuente
 FcBlanks *blanks = FcBlanksCreate(); //para errores de fuentes
 int count = 0;
@@ -506,7 +504,7 @@ glGenTextures( 1, &texture );
 glBindTexture( GL_TEXTURE_2D, texture );
 glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
-glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, sdlsurf->w, sdlsurf->h, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, sdlsurf->pixels);
+glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, mycanvas->getWidth(), mycanvas->getHeight(), 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, mycanvas->getBuffer());
 //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 int frame_count=0;
@@ -515,18 +513,19 @@ int t=SDL_GetTicks();
 double p; //pi phase
 	while(stage.get() != stage.quit)
 	{
-
 		glClear( GL_COLOR_BUFFER_BIT );
 
 		//pi phase
 		p+=M_PI/200.f;
 		if(p>2*M_PI)
 			p=p-2*M_PI;
-		glPointSize(3.f);
+		glPointSize(1.f);
 		glColor4f(1.f,1.f,1.f,1.f);
 		glBegin(GL_POINTS);
 			for(int i=0; i<1000; i++){
-				glVertex2i(100+2*(2+sin(p))*i,240+cos(p)*i+0.5*i*sin(p+i));
+				//glVertex2i(320+sin(sin(p)*4*M_PI*i/100)*i,240+cos(sin(p)*4*M_PI*i/100)*i);
+				glVertex2i(320+tan(p-2*M_PI*i/1000.f)*100,240+sin(p+2*M_PI*i/100.f)*100*sin(p));
+				//glVertex2i(100+2*(2+sin(p))*i,240+cos(p)*i+0.5*i*sin(p+i));
 			}
 		glEnd();
 
@@ -541,22 +540,22 @@ double p; //pi phase
 		cairo_move_to(cr, 10, 10);
 
 		pango_cairo_show_layout(cr, layout);
-		mytext.str("");
+		mytext2.str("");
 		frame_count++;
 		if(frame_count==20){
 			fps=1000/((SDL_GetTicks()-t)/frame_count);
 			t=SDL_GetTicks();
 			frame_count=0;
 		}
-		mytext << "FPS: " << fps;
-		pango_layout_set_text(layout, mytext.str().c_str(), -1);
+		mytext2 << "FPS: " << fps;
+		pango_layout_set_text(layout, mytext2.str().c_str(), -1);
 		cairo_fill(cr);
 
-		cairosdl_surface_flush(cairosurf);
+		mycanvas->flush();
 
 		glEnable(GL_TEXTURE_2D);
 		glBindTexture( GL_TEXTURE_2D, texture );
-		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, sdlsurf->w, sdlsurf->h, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, sdlsurf->pixels);
+		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, mycanvas->getWidth(), mycanvas->getHeight(), GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, mycanvas->getBuffer());
 		glBegin(GL_QUADS);
 			glTexCoord2f(0.0f, 0.0f); glVertex2i(0, 0);
 			glTexCoord2f(0.0f, 1.0f); glVertex2i(0, 480);
