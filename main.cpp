@@ -178,10 +178,10 @@ void PIXL_Texture::draw(int x=0, int y=0)
 /**
  * @brief Cairo surface
  */
-class PIXL_Canvas {
+class PIXL_Layer {
 	public:
-		PIXL_Canvas(int w, int h);
-		~PIXL_Canvas();
+		PIXL_Layer(int w, int h);
+		~PIXL_Layer();
 		int getWidth() { return width; }
 		int getHeight() { return height; }
 		cairo_t* getContext() { return context; }
@@ -198,9 +198,9 @@ class PIXL_Canvas {
 };
 
 /**
- * @brief Canvas class constructor
+ * @brief Layer class constructor
  */
-PIXL_Canvas::PIXL_Canvas(int w, int h): width(w), height(h)
+PIXL_Layer::PIXL_Layer(int w, int h): width(w), height(h)
 {
 	sdlsurf = SDL_CreateRGBSurface( 0, width, height, 32,
 									CAIROSDL_RMASK,
@@ -213,7 +213,7 @@ PIXL_Canvas::PIXL_Canvas(int w, int h): width(w), height(h)
 	context = cairo_create(canvas);
 }
 
-void PIXL_Canvas::clear()
+void PIXL_Layer::clear()
 {
 	cairo_save(context);
 	cairo_set_operator(context,CAIRO_OPERATOR_CLEAR);
@@ -223,21 +223,34 @@ void PIXL_Canvas::clear()
 
 
 /**
- * @brief Layer class (sdl surface)
- */
-class PIXL_Layer {
-	public:
-	private:
-};
-
-
-/**
  * @brief Sprite class (load png and svg)
  */
 class PIXL_Sprite {
 	public:
+		PIXL_Sprite(PIXL_Layer* c, const char* f);
+		virtual ~PIXL_Sprite();
+		void draw(int w, int h);
 	private:
+		cairo_surface_t* image;
+		PIXL_Layer* canvas;
 };
+
+PIXL_Sprite::PIXL_Sprite(PIXL_Layer* c, const char* f)
+{
+	canvas = c;
+	image = cairo_image_surface_create_from_png(f);
+}
+
+void PIXL_Sprite::draw(int w, int h)
+{
+	cairo_set_source_surface(canvas->getContext(), image, w, h);
+	cairo_paint(canvas->getContext());
+}
+
+PIXL_Sprite::~PIXL_Sprite()
+{
+	cairo_surface_destroy(image);
+}
 
 
 /**
@@ -245,8 +258,8 @@ class PIXL_Sprite {
  */
 class PIXL_Text {
 	public:
-		PIXL_Text(PIXL_Canvas* c, const char* f, unsigned int s);
-		virtual ~PIXL_Text ();
+		PIXL_Text(PIXL_Layer* c, const char* f, unsigned int s);
+		virtual ~PIXL_Text();
 		void setSize(unsigned int s) { font_size=s; }
 		void setPos(unsigned int x, unsigned int y) { cairo_move_to(context, x, y); };
 		void print(const char* text);
@@ -262,7 +275,7 @@ class PIXL_Text {
 		int count;
 };
 
-PIXL_Text::PIXL_Text(PIXL_Canvas* c, const char* f, unsigned int s): context(c->getContext()), font_name((const FcChar8*)f), font_size(s)
+PIXL_Text::PIXL_Text(PIXL_Layer* c, const char* f, unsigned int s): context(c->getContext()), font_name((const FcChar8*)f), font_size(s)
 {
 	fc = FcConfigGetCurrent(); //para checkear si existe fuente
 	blanks = FcBlanksCreate(); //para errores de fuentes
@@ -483,14 +496,14 @@ int main(int argc, const char *argv[])
 
 /*****************************************************************************/
 /*****************************************************************************/
-PIXL_Canvas *mycanvas = new PIXL_Canvas(640, 480);
+PIXL_Layer *mycanvas = new PIXL_Layer(640, 480);
 cairo_t *cr = mycanvas->getContext();
 
 PIXL_Text *mytext = new PIXL_Text(mycanvas, "fonts/ProggyTiny.ttf", 12);
 
 PIXL_Texture *mytexture = new PIXL_Texture(mycanvas->getBuffer(), mycanvas->getWidth(), mycanvas->getHeight());
-//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+PIXL_Sprite *mysprite = new PIXL_Sprite(mycanvas, "bullet.png");
 std::stringstream mystring;
 int frame_count=0;
 int fps=0;
@@ -500,6 +513,7 @@ double p; //pi phase
 	while(stage.get() != stage.quit)
 	{
 		glClear( GL_COLOR_BUFFER_BIT );
+		mycanvas->clear();
 
 		//pi phase
 		p+=M_PI/200.f;
@@ -515,6 +529,10 @@ double p; //pi phase
 			}
 		glEnd();
 
+		for(int i=0; i<100; i++){
+			mysprite->draw(320+sin(sin(p)*4*M_PI*i/100)*i*2,240+cos(sin(p)*4*M_PI*i/100)*i*2);
+		}
+
 		frame_count++;
 		if(frame_count==20){
 			fps=1000/((SDL_GetTicks()-t)/frame_count);
@@ -524,10 +542,9 @@ double p; //pi phase
 		mystring.str("");
 		mystring << "FPS: " << fps;
 
-		mycanvas->clear();
-
 		mytext->setPos(10,10);
 		mytext->print(mystring.str().c_str());
+
 
 		mycanvas->flush();
 		mytexture->draw();
