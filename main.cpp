@@ -32,7 +32,7 @@
 #include <cairo/cairo.h>
 #include "cairosdl.h"
 #include <librsvg/rsvg.h>
-#include <librsvg/rsvg-cairo.h>
+#include <yaml.h>
 
 
 /**
@@ -102,15 +102,6 @@ bool PIXL_Timer::status()
 
 	return false;
 }
-
-
-/**
- * @brief Generic object class
- */
-class PIXL_Object {
-	public:
-	private:
-};
 
 
 /**
@@ -185,14 +176,14 @@ class PIXL_Layer {
 		int getWidth() { return width; }
 		int getHeight() { return height; }
 		cairo_t* getContext() { return context; }
-		void blit();
-		void clear();
-		void flush() { cairosdl_surface_flush(layer); }
 		void* getBuffer() { return sdlsurf->pixels; }
+		void draw();
+		void clear();
 	private:
 		SDL_Surface *sdlsurf;
 		cairo_surface_t *layer;
 		cairo_t* context;
+		PIXL_Texture* texture;
 		int width;
 		int height;
 };
@@ -211,6 +202,14 @@ PIXL_Layer::PIXL_Layer(int w, int h): width(w), height(h)
 	layer = cairosdl_surface_create(sdlsurf);
 
 	context = cairo_create(layer);
+
+	texture = new PIXL_Texture(getBuffer(), width, height);
+}
+
+void PIXL_Layer::draw()
+{
+	cairosdl_surface_flush(layer); 
+	texture->draw();
 }
 
 void PIXL_Layer::clear()
@@ -501,8 +500,6 @@ cairo_t *cr = mylayer->getContext();
 
 PIXL_Text *mytext = new PIXL_Text(mylayer, "fonts/ProggyTiny.ttf", 12);
 
-PIXL_Texture *mytexture = new PIXL_Texture(mylayer->getBuffer(), mylayer->getWidth(), mylayer->getHeight());
-
 PIXL_Sprite *mysprite = new PIXL_Sprite(mylayer, "bullet.png");
 std::stringstream mystring;
 int frame_count=0;
@@ -523,9 +520,7 @@ double p; //pi phase
 		glColor4f(1.f,1.f,1.f,1.f);
 		glBegin(GL_POINTS);
 			for(int i=0; i<1000; i++){
-				//glVertex2i(320+sin(sin(p)*4*M_PI*i/100)*i,240+cos(sin(p)*4*M_PI*i/100)*i);
 				glVertex2i(320+tan(p-2*M_PI*i/1000.f)*100,240+sin(p+2*M_PI*i/100.f)*100*sin(p));
-				//glVertex2i(100+2*(2+sin(p))*i,240+cos(p)*i+0.5*i*sin(p+i));
 			}
 		glEnd();
 
@@ -546,8 +541,7 @@ double p; //pi phase
 		mytext->print(mystring.str().c_str());
 
 
-		mylayer->flush();
-		mytexture->draw();
+		mylayer->draw();
 
 
 		SDL_GL_SwapBuffers();
