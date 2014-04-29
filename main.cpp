@@ -34,11 +34,6 @@
 #include <librsvg/rsvg.h>
 #include <yaml.h>
 
-/*
- * PIXL anonymous namespace for internal types. Do not indent.
- *
- */
-namespace {
 typedef unsigned int uint;
 
 /**
@@ -506,14 +501,12 @@ bool PIXL_bbc(SDL_Rect b1, SDL_Rect b2)
     return true;
 }
 
-} /*** End of anonymous namespace. Do not indent. ***/
-
 ///////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, const char *argv[])
 {
 	PIXL_Init();
-	printf("%i", *PIXL_Config.w);
+
 	SDL_Event event;
 
 /**************************demo stuff*****************************************/
