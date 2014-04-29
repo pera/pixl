@@ -34,20 +34,41 @@
 #include <librsvg/rsvg.h>
 #include <yaml.h>
 
+/*
+ * PIXL anonymous namespace for internal types. Do not indent.
+ *
+ */
+namespace {
+typedef unsigned int uint;
+
+/**
+ * @brief General configuration object
+ */
+class PIXL_Config {
+	public:
+		PIXL_Config(uint initial_width = 640, uint initial_height = 480): w(&width), h(&height), width(initial_width), height(initial_height) {}
+		void setResolution(uint new_width, uint new_height) { width=new_width; height=new_height; }
+		const uint *const w;
+		const uint *const h;
+	private:
+		uint width;
+		uint height;
+} PIXL_Config;
+
 
 /**
  * @brief Timer class
  */
 class PIXL_Timer {
 	public:
-		PIXL_Timer(unsigned int t);
-		void set(unsigned int t);
+		PIXL_Timer(uint t);
+		void set(uint t);
 		void start();
 		void stop();
 		bool status();
 	private:
-		unsigned int time;
-		unsigned int start_time;
+		uint time;
+		uint start_time;
 		bool status_flag;
 };
 
@@ -56,7 +77,7 @@ class PIXL_Timer {
  *
  * @param t interval time (ms)
  */
-PIXL_Timer::PIXL_Timer(unsigned int t)
+PIXL_Timer::PIXL_Timer(uint t)
 {
 	set(t);
 	status_flag = false;
@@ -67,7 +88,7 @@ PIXL_Timer::PIXL_Timer(unsigned int t)
  *
  * @param t new interval time
  */
-void PIXL_Timer::set(unsigned int t)
+void PIXL_Timer::set(uint t)
 {
 	time = t;
 	status_flag = false;
@@ -120,8 +141,8 @@ class PIXL_Texture {
 	private:
 		GLuint texture;
 		const GLvoid* data;
-		unsigned int width;
-		unsigned int height;
+		uint width;
+		uint height;
 };
 
 /**
@@ -257,14 +278,14 @@ PIXL_Sprite::~PIXL_Sprite()
  */
 class PIXL_Text {
 	public:
-		PIXL_Text(PIXL_Layer* l, const char* f, unsigned int s);
+		PIXL_Text(PIXL_Layer* l, const char* f, uint s);
 		virtual ~PIXL_Text();
-		void setSize(unsigned int s) { font_size=s; }
-		void setPos(unsigned int x, unsigned int y) { cairo_move_to(context, x, y); };
+		void setSize(uint s) { font_size=s; }
+		void setPos(uint x, uint y) { cairo_move_to(context, x, y); };
 		void print(const char* text);
 	private:
 		const FcChar8 *font_name;
-		unsigned int font_size;
+		uint font_size;
 		FcConfig *fc; //para checkear si existe fuente
 		FcBlanks *blanks; //para errores de fuentes
 		FcPattern *pattern;
@@ -274,7 +295,7 @@ class PIXL_Text {
 		int count;
 };
 
-PIXL_Text::PIXL_Text(PIXL_Layer* l, const char* f, unsigned int s): context(l->getContext()), font_name((const FcChar8*)f), font_size(s)
+PIXL_Text::PIXL_Text(PIXL_Layer* l, const char* f, uint s): context(l->getContext()), font_name((const FcChar8*)f), font_size(s)
 {
 	fc = FcConfigGetCurrent(); //para checkear si existe fuente
 	blanks = FcBlanksCreate(); //para errores de fuentes
@@ -331,7 +352,7 @@ int PIXL_Init()
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	SDL_GL_SetAttribute(SDL_GL_SWAP_CONTROL, 1);
 
-	if(!(screen = SDL_SetVideoMode(640, 480, 32, SDL_OPENGL))){
+	if(!(screen = SDL_SetVideoMode(*PIXL_Config.w, *PIXL_Config.h, 32, SDL_OPENGL))){
 		printf("Unable to set video mode: %s\n", SDL_GetError());
 		return 1;
 	}
@@ -417,9 +438,9 @@ class PIXL_Stage {
 		PIXL_Stage(){stage = 0;}
 		enum {play, quit};
 		void set(char s) {stage = s;}
-		unsigned int get() {return stage;}
+		uint get() {return stage;}
 	private:
-		unsigned int stage;
+		uint stage;
 } stage;
 
 /**
@@ -485,18 +506,19 @@ bool PIXL_bbc(SDL_Rect b1, SDL_Rect b2)
     return true;
 }
 
+} /*** End of anonymous namespace. Do not indent. ***/
+
 ///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
+
 int main(int argc, const char *argv[])
 {
 	PIXL_Init();
-	
+	printf("%i", *PIXL_Config.w);
 	SDL_Event event;
 
+/**************************demo stuff*****************************************/
 /*****************************************************************************/
-/*****************************************************************************/
-PIXL_Layer *mylayer = new PIXL_Layer(640, 480);
-cairo_t *cr = mylayer->getContext();
+PIXL_Layer *mylayer = new PIXL_Layer(*PIXL_Config.w, *PIXL_Config.h);
 
 PIXL_Text *mytext = new PIXL_Text(mylayer, "fonts/ProggyTiny.ttf", 12);
 
