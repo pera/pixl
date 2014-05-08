@@ -26,6 +26,7 @@
 #include <GL/glew.h>
 #include <GL/glxew.h>
 #include <SDL/SDL.h>
+#include <SDL/SDL_image.h>
 #include <fontconfig/fontconfig.h>
 #include <pango/pangocairo.h>
 #include <pango/pangofc-fontmap.h>
@@ -147,17 +148,14 @@ class PIXL_Texture {
  * @param w width
  * @param h height
  */
-PIXL_Texture::PIXL_Texture(const GLvoid* d, const int w, const int h):data(d)
+PIXL_Texture::PIXL_Texture(const GLvoid* d, const int w, const int h):data(d),width(w),height(h)
 {
 	glGenTextures(1, &texture);
 	glBindTexture(GL_TEXTURE_2D, texture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_BGRA,
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_BGRA,
 				 GL_UNSIGNED_INT_8_8_8_8_REV, data);
-
-	width = w;
-	height = h;
 }
 
 /**
@@ -168,17 +166,18 @@ PIXL_Texture::PIXL_Texture(const GLvoid* d, const int w, const int h):data(d)
  */
 void PIXL_Texture::draw(int x=0, int y=0)
 {
-		glColor4ub(255,255,255,255);
-		glEnable(GL_TEXTURE_2D);
-		glBindTexture( GL_TEXTURE_2D, texture );
-		glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, data);
-		glBegin(GL_QUADS);
-			glTexCoord2f(0.0f, 0.0f); glVertex2i(0, 0);
-			glTexCoord2f(0.0f, 1.0f); glVertex2i(0, height);
-			glTexCoord2f(1.0f, 1.0f); glVertex2i(width, height);
-			glTexCoord2f(1.0f, 0.0f); glVertex2i(width, 0);
-		glEnd();
-		glDisable(GL_TEXTURE_2D);
+	glColor4ub(255,255,255,255);
+
+	glEnable(GL_TEXTURE_2D);
+	glBindTexture( GL_TEXTURE_2D, texture );
+	glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, data);
+	glBegin(GL_QUADS);
+		glTexCoord2f(0.0f, 0.0f); glVertex2i(0, 0);
+		glTexCoord2f(0.0f, 1.0f); glVertex2i(0, height);
+		glTexCoord2f(1.0f, 1.0f); glVertex2i(width, height);
+		glTexCoord2f(1.0f, 0.0f); glVertex2i(width, 0);
+	glEnd();
+	glDisable(GL_TEXTURE_2D);
 }
 
 
@@ -428,15 +427,15 @@ void PIXL_Render(){}
 /**
  * @brief Scene manager for poors
  */
-class PIXL_Stage {
+class PIXL_State {
 	public:
-		PIXL_Stage(){stage = 0;}
+		PIXL_State(){state = 0;}
 		enum {play, quit};
-		void set(char s) {stage = s;}
-		uint get() {return stage;}
+		void set(char s) {state = s;}
+		uint get() {return state;}
 	private:
-		uint stage;
-} stage;
+		uint state;
+} state;
 
 /**
  * @brief Plain text loading function (faster than C++ rutines)
@@ -519,42 +518,123 @@ PIXL_Sprite *mysprite = new PIXL_Sprite(mylayer, "bullet.png");
 std::stringstream mystring;
 int frame_count=0;
 int fps=0;
-int t=SDL_GetTicks();
+int mytime=SDL_GetTicks();
 
 double p; //pi phase
-	while(stage.get() != stage.quit)
+	
+	double t = 0.f;
+	const double dt = 1.f / 100.f;
+
+	double currentTime = SDL_GetTicks(); //GetTicks es uint32
+	double accumulator = 0.f;
+
+	int loops=0;
+
+		SDL_Surface* image = IMG_Load("test.png");
+		glEnable(GL_TEXTURE_2D);
+		GLuint texture;
+		glGenTextures(1, &texture);
+		glBindTexture(GL_TEXTURE_2D, texture);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 15, 15, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, image->pixels);
+		glDisable(GL_TEXTURE_2D);
+
+int myarray[200000];
+
+	while(state.get() != state.quit)
 	{
+		double newTime = SDL_GetTicks();
+		double frameTime = newTime - currentTime;
+		currentTime = newTime;
+
+		accumulator += frameTime;
+
+		loops=0;
+		while(accumulator >= dt)
+		{
+			//pi phase
+			p+=M_PI/200000.f;
+			if(p>2*M_PI)
+				p=p-2*M_PI;
+
+			accumulator -= dt;
+			t += dt;
+
+			loops++;
+		}
+
 		glClear( GL_COLOR_BUFFER_BIT );
 		mylayer->clear();
 
-		//pi phase
-		p+=M_PI/200.f;
-		if(p>2*M_PI)
-			p=p-2*M_PI;
-		glPointSize(1.f);
-		glColor4f(1.f,1.f,1.f,1.f);
-		glBegin(GL_POINTS);
-			for(int i=0; i<1000; i++){
-				glVertex2i(320+tan(p-2*M_PI*i/1000.f)*100,240+sin(p+2*M_PI*i/100.f)*100*sin(p));
-			}
-		glEnd();
+		//for(int i=0; i<10000; i++){
+			//mysprite->draw(320+sin(sin(p)*4*M_PI*i/100)*i*0.02,240+cos(sin(p)*4*M_PI*i/100)*i*0.02);
+		//}
 
-		for(int i=0; i<100; i++){
-			mysprite->draw(320+sin(sin(p)*4*M_PI*i/100)*i*2,240+cos(sin(p)*4*M_PI*i/100)*i*2);
+		//glEnable(GL_TEXTURE_2D);
+		//glBindTexture(GL_TEXTURE_2D, texture);
+		//glBegin(GL_QUADS);
+			//for(int i=0; i<100000; i++){
+				//int x=320+sin(sin(p)*4*M_PI*i/100)*i*0.002;
+				//int y=240+cos(sin(p)*4*M_PI*i/100)*i*0.002;
+				//glTexCoord2f(0.0f, 0.0f); glVertex2i(x, y);
+				//glTexCoord2f(0.0f, 1.0f); glVertex2i(x, y+15);
+				//glTexCoord2f(1.0f, 1.0f); glVertex2i(x+15, y+15);
+				//glTexCoord2f(1.0f, 0.0f); glVertex2i(x+15, y);
+			//}
+		//glEnd();
+		//glDisable(GL_TEXTURE_2D);
+
+		//glEnable(GL_TEXTURE_2D);
+		//glEnable(GL_POINT_SPRITE);
+		//glBindTexture(GL_TEXTURE_2D, texture);
+		//glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_TRUE);
+		//glPointSize(15);
+		//glBegin(GL_POINTS);
+			//for(int i=0; i<100000; i++){
+				//int x=320+sin(sin(p)*4*M_PI*i/100)*i*0.002;
+				//int y=240+cos(sin(p)*4*M_PI*i/100)*i*0.002;
+				//glVertex2i(x,y);
+			//}
+		//glEnd();
+		//glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_FALSE);
+		//glDisable(GL_POINT_SPRITE);
+		//glDisable(GL_TEXTURE_2D);
+
+		for(int i=0; i<10000; i++){
+			int x=320+sin(sin(p)*4*M_PI*i/100)*i*0.02;
+			int y=240+cos(sin(p)*4*M_PI*i/100)*i*0.02;
+			myarray[i*2]=x;
+			myarray[i*2+1]=y;
 		}
+		glEnableClientState(GL_VERTEX_ARRAY);
+		glVertexPointer(2, GL_INT, 0, myarray);
+		glEnable(GL_TEXTURE_2D);
+		glEnable(GL_POINT_SPRITE);
+		glBindTexture(GL_TEXTURE_2D, texture);
+		glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_TRUE);
+		glPointSize(15);
+		glDrawArrays(GL_POINTS, 0, 10000);
+		glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_FALSE);
+		glDisable(GL_POINT_SPRITE);
+		glDisable(GL_TEXTURE_2D);
+		glDisableClientState(GL_VERTEX_ARRAY);
+
+
 
 		frame_count++;
 		if(frame_count==20){
-			fps=1000/((SDL_GetTicks()-t)/frame_count);
-			t=SDL_GetTicks();
+			fps=1000/((SDL_GetTicks()-mytime)/frame_count);
+			mytime=SDL_GetTicks();
 			frame_count=0;
 		}
 		mystring.str("");
 		mystring << "FPS: " << fps;
+		mystring << "\n" << SDL_GetTicks()/1000.f;
+		mystring << "\nloops: " << loops;
 
 		mytext->setPos(10,10);
 		mytext->print(mystring.str().c_str());
-
 
 		mylayer->draw();
 
@@ -568,7 +648,7 @@ double p; //pi phase
 			switch(event.key.keysym.sym)
 			{
 				case SDLK_ESCAPE:
-					stage.set(stage.quit);
+					state.set(state.quit);
 					break;
 			}
 		}
