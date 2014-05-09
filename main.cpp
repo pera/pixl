@@ -399,12 +399,12 @@ int PIXL_Init()
 
 	glDisable(GL_DEPTH_TEST);
 
-	glViewport(0, 0, screen->w, screen->h);
+	glViewport(0, 0, *PIXL_Config.w, *PIXL_Config.h);
 
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 
-	glOrtho(0, screen->w, screen->h, 0, -1, 1);
+	glOrtho(0, *PIXL_Config.w, *PIXL_Config.h, 0, -1, 1);
 
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
@@ -500,6 +500,92 @@ bool PIXL_bbc(SDL_Rect b1, SDL_Rect b2)
     return true;
 }
 
+
+///////////////////////////////////////////////////////////////////////////////
+/**
+ * Shader compile messages log
+ */
+void CompileLog(GLuint *shader)
+{
+	GLint compiled;
+	
+	glGetShaderiv(*shader, GL_COMPILE_STATUS, &compiled);
+
+	if (!compiled) {
+		GLint length;
+		GLchar* log;
+		glGetShaderiv(*shader, GL_INFO_LOG_LENGTH, &length);
+
+		log = (GLchar*) malloc(length);
+		glGetShaderInfoLog(*shader, length, &length, log);
+		fprintf(stderr, "Compile log\n-----------\n%s\n", log);
+	}
+}
+
+// rutina de prueba para cargar shaders
+GLuint shaders(const char* filename)
+{
+	GLuint VertexShader;
+	GLuint FragmentShader;
+	GLint linked;
+	GLuint program;
+
+	VertexShader = glCreateShader(GL_VERTEX_SHADER);
+	FragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+	program = glCreateProgram();
+
+	const GLchar *vertexSrc = PIXL_LoadTextFile("blur.vert");
+	const GLchar *fragmentSrc = PIXL_LoadTextFile(filename);
+
+	glShaderSource(VertexShader, 1, &vertexSrc, NULL);
+	glShaderSource(FragmentShader, 1, &fragmentSrc, NULL);
+	
+	glCompileShader(VertexShader);
+	glCompileShader(FragmentShader);
+
+	CompileLog(&VertexShader);
+	CompileLog(&FragmentShader);
+
+	glAttachShader(program, VertexShader);
+	glAttachShader(program, FragmentShader);
+
+	glLinkProgram(program);
+
+	glGetProgramiv(program, GL_LINK_STATUS, &linked);
+
+	if(linked){
+		glUseProgram(program);
+	} else {
+		GLint length;
+		GLchar* log;
+		glGetProgramiv(program, GL_INFO_LOG_LENGTH, &length);
+
+		log = (GLchar*) malloc(length);
+		glGetProgramInfoLog(program, length, &length, log);
+		fprintf(stderr, "Linking %s\n", log);
+	}
+
+	GLint texLoc = glGetUniformLocation(program, "sampler0");
+	glUniform1i(texLoc, 0);
+
+	GLfloat width = glGetUniformLocation(program, "w");
+	GLfloat height = glGetUniformLocation(program, "h");
+	glUniform1f(width, *PIXL_Config.w);
+	glUniform1f(height, *PIXL_Config.h);
+
+	glActiveTexture(GL_TEXTURE0);
+
+	GLenum errCode = glGetError();
+	const GLubyte *errString;
+	if(errCode != GL_NO_ERROR) {
+		errString = gluErrorString(errCode);
+		fprintf(stderr, "OpenGL Error: %s\n", errString);
+	}
+
+	return program;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, const char *argv[])
@@ -523,7 +609,7 @@ int mytime=SDL_GetTicks();
 double p; //pi phase
 	
 	double t = 0.f;
-	const double dt = 1.f / 100.f;
+	const double dt = 1.f / 100.0f;
 
 	double currentTime = SDL_GetTicks(); //GetTicks es uint32
 	double accumulator = 0.f;
@@ -542,6 +628,38 @@ double p; //pi phase
 
 int myarray[200000];
 
+
+/*
+ * Shaders stuff
+ *
+ */
+
+GLuint myshader = shaders("blur.frag");
+glUniform1f((GLfloat)glGetUniformLocation(myshader, "w"), (GLfloat)*PIXL_Config.w);
+glUniform1f((GLfloat)glGetUniformLocation(myshader, "h"), (GLfloat)*PIXL_Config.h);
+
+/*
+ * Frame Buffer Object
+ *
+ */
+
+GLuint FBO, FBO_texture;
+
+glGenFramebuffers(1, &FBO);
+glGenTextures(1, &FBO_texture);
+
+glBindTexture( GL_TEXTURE_2D, FBO_texture);
+glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB, *PIXL_Config.w, *PIXL_Config.h, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+
+if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+	puts("FBO error");
+
+
+/*
+ * MAIN LOOP
+ */
 	while(state.get() != state.quit)
 	{
 		double newTime = SDL_GetTicks();
@@ -567,8 +685,14 @@ int myarray[200000];
 		glClear( GL_COLOR_BUFFER_BIT );
 		mylayer->clear();
 
-		//for(int i=0; i<10000; i++){
-			//mysprite->draw(320+sin(sin(p)*4*M_PI*i/100)*i*0.02,240+cos(sin(p)*4*M_PI*i/100)*i*0.02);
+	//	// FBO stuff
+		glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+		glClear( GL_COLOR_BUFFER_BIT );
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, FBO_texture, 0);
+////////////////fbo^^^^^
+
+		//for(int i=0; i<100; i++){
+			//mysprite->draw(320+sin(sin(p)*4*M_PI*i/100)*i*2,240+cos(sin(p)*4*M_PI*i/100)*i*2);
 		//}
 
 		//glEnable(GL_TEXTURE_2D);
@@ -622,6 +746,7 @@ int myarray[200000];
 
 
 
+
 		frame_count++;
 		if(frame_count==20){
 			fps=1000/((SDL_GetTicks()-mytime)/frame_count);
@@ -639,6 +764,18 @@ int myarray[200000];
 		mylayer->draw();
 
 
+
+glBindFramebuffer(GL_FRAMEBUFFER, 0);
+glBindTexture( GL_TEXTURE_2D, FBO_texture );
+		glUseProgram(myshader);
+		glBegin(GL_QUADS);
+			glTexCoord2f(0.0f, 1.0f); glVertex2i(0, 0);
+			glTexCoord2f(0.0f, 0.0f); glVertex2i(0, *PIXL_Config.h);
+			glTexCoord2f(1.0f, 0.0f); glVertex2i(*PIXL_Config.w, *PIXL_Config.h);
+			glTexCoord2f(1.0f, 1.0f); glVertex2i(*PIXL_Config.w, 0);
+		glEnd();
+		glUseProgram(0);
+//*/
 		SDL_GL_SwapBuffers();
 
 		///////////////////////////////
