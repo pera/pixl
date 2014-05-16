@@ -195,6 +195,7 @@ class PIXL_FBO {
 		virtual ~PIXL_FBO();
 		void bind();
 		void draw();
+		void clear() { glClear( GL_COLOR_BUFFER_BIT ); }
 	private:
 		//PIXL_Texture *texture;
 		GLuint FBO;
@@ -223,7 +224,6 @@ PIXL_FBO::~PIXL_FBO()
 void PIXL_FBO::bind()
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, FBO);
-	glClear( GL_COLOR_BUFFER_BIT );
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
 }
 
@@ -608,57 +608,39 @@ bool PIXL_bbc(SDL_Rect b1, SDL_Rect b2)
 }
 
 
-///////////////////////////////////////////////////////////////////////////////
 /**
- * Shader compile messages log
- * TODO comparar con https://www.opengl.org/wiki/GLSL#Error_Checking
+ * @brief Helper function to load a fragment shader from a file
  */
-void CompileLog(GLuint *shader)
+GLuint PIXL_LoadShader(const char* filename)
 {
+	GLuint FragmentShader;
+	GLint linked;
+	GLuint program;
 	GLint compiled;
-	
-	glGetShaderiv(*shader, GL_COMPILE_STATUS, &compiled);
+
+	FragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+	program = glCreateProgram();
+
+	const GLchar *fragmentSrc = PIXL_LoadTextFile(filename);
+
+	glShaderSource(FragmentShader, 1, &fragmentSrc, NULL);
+	glCompileShader(FragmentShader);
+
+// TODO comparar con https://www.opengl.org/wiki/GLSL#Error_Checking
+	glGetShaderiv(FragmentShader, GL_COMPILE_STATUS, &compiled);
 
 	if (!compiled) {
 		GLint length;
 		GLchar* log;
-		glGetShaderiv(*shader, GL_INFO_LOG_LENGTH, &length);
+		glGetShaderiv(FragmentShader, GL_INFO_LOG_LENGTH, &length);
 
 		log = (GLchar*) malloc(length);
-		glGetShaderInfoLog(*shader, length, &length, log);
-		fprintf(stderr, "Compile log\n-----------\n%s\n", log);
+		glGetShaderInfoLog(FragmentShader, length, &length, log);
+		fprintf(stderr, "\nCompile log\n-----------\n%s\n", log);
 	}
-}
 
-// rutina de prueba para cargar shaders
-GLuint shaders(const char* filename)
-{
-	GLuint VertexShader;
-	GLuint FragmentShader;
-	GLint linked;
-	GLuint program;
-
-	VertexShader = glCreateShader(GL_VERTEX_SHADER);
-	FragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-	program = glCreateProgram();
-
-	const GLchar *vertexSrc = PIXL_LoadTextFile("blur.vert");
-	const GLchar *fragmentSrc = PIXL_LoadTextFile(filename);
-
-	glShaderSource(VertexShader, 1, &vertexSrc, NULL);
-	glShaderSource(FragmentShader, 1, &fragmentSrc, NULL);
-	
-	glCompileShader(VertexShader);
-	glCompileShader(FragmentShader);
-
-	CompileLog(&VertexShader);
-	CompileLog(&FragmentShader);
-
-	glAttachShader(program, VertexShader);
 	glAttachShader(program, FragmentShader);
-
 	glLinkProgram(program);
-
 	glGetProgramiv(program, GL_LINK_STATUS, &linked);
 
 	if(linked){
@@ -689,6 +671,8 @@ GLuint shaders(const char* filename)
 		errString = gluErrorString(errCode);
 		fprintf(stderr, "OpenGL Error: %s\n", errString);
 	}
+
+	glUseProgram(0);
 
 	return program;
 }
@@ -724,7 +708,6 @@ double p; //pi phase
 	double currentTime = SDL_GetTicks(); //GetTicks es uint32
 	double accumulator = 0.f;
 
-	int loops=0;
 
 		SDL_Surface* image = IMG_Load("test.png");
 		glEnable(GL_TEXTURE_2D);
@@ -744,9 +727,7 @@ int myarray[200000];
  *
  */
 
-GLuint myshader = shaders("blur.frag");
-glUniform1f((GLfloat)glGetUniformLocation(myshader, "w"), (GLfloat)*PIXL_Config.w);
-glUniform1f((GLfloat)glGetUniformLocation(myshader, "h"), (GLfloat)*PIXL_Config.h);
+GLuint myshader = PIXL_LoadShader("blur.frag");
 
 PIXL_FBO *myfbo = new PIXL_FBO();
 
@@ -761,7 +742,6 @@ PIXL_FBO *myfbo = new PIXL_FBO();
 
 		accumulator += frameTime;
 
-		loops=0;
 		while(accumulator >= dt)
 		{
 			//pi phase
@@ -771,71 +751,18 @@ PIXL_FBO *myfbo = new PIXL_FBO();
 
 			accumulator -= dt;
 			t += dt;
-
-			loops++;
 		}
+
+		myfbo->bind();
 
 		glClear( GL_COLOR_BUFFER_BIT );
 		mylayer->clear();
 
-		myfbo->bind();
-
-		//for(int i=0; i<100; i++){
-			//myimage->draw(320+sin(sin(p)*4*M_PI*i/100)*i*2,240+cos(sin(p)*4*M_PI*i/100)*i*2);
-		//}
-
-		//glEnable(GL_TEXTURE_2D);
-		//glBindTexture(GL_TEXTURE_2D, texture);
-		//glBegin(GL_QUADS);
-			//for(int i=0; i<100000; i++){
-				//int x=320+sin(sin(p)*4*M_PI*i/100)*i*0.002;
-				//int y=240+cos(sin(p)*4*M_PI*i/100)*i*0.002;
-				//glTexCoord2f(0.0f, 0.0f); glVertex2i(x, y);
-				//glTexCoord2f(0.0f, 1.0f); glVertex2i(x, y+15);
-				//glTexCoord2f(1.0f, 1.0f); glVertex2i(x+15, y+15);
-				//glTexCoord2f(1.0f, 0.0f); glVertex2i(x+15, y);
-			//}
-		//glEnd();
-		//glDisable(GL_TEXTURE_2D);
-
-		//glEnable(GL_TEXTURE_2D);
-		//glEnable(GL_POINT_SPRITE);
-		//glBindTexture(GL_TEXTURE_2D, texture);
-		//glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_TRUE);
-		//glPointSize(15);
-		//glBegin(GL_POINTS);
-			//for(int i=0; i<100000; i++){
-				//int x=320+sin(sin(p)*4*M_PI*i/100)*i*0.002;
-				//int y=240+cos(sin(p)*4*M_PI*i/100)*i*0.002;
-				//glVertex2i(x,y);
-			//}
-		//glEnd();
-		//glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_FALSE);
-		//glDisable(GL_POINT_SPRITE);
-		//glDisable(GL_TEXTURE_2D);
-
-		//for(int i=0; i<10000; i++){
-			//int x=320+sin(sin(p)*4*M_PI*i/100)*i*0.02;
-			//int y=240+cos(sin(p)*4*M_PI*i/100)*i*0.02;
-			//myarray[i*2]=x;
-			//myarray[i*2+1]=y;
-		//}
-		//glEnableClientState(GL_VERTEX_ARRAY);
-		//glVertexPointer(2, GL_INT, 0, myarray);
-		//glEnable(GL_TEXTURE_2D);
-		//glEnable(GL_POINT_SPRITE);
-		//glBindTexture(GL_TEXTURE_2D, texture);
-		//glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_TRUE);
-		//glPointSize(15);
-		//glDrawArrays(GL_POINTS, 0, 10000);
-		//glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_FALSE);
-		//glDisable(GL_POINT_SPRITE);
-		//glDisable(GL_TEXTURE_2D);
-		//glDisableClientState(GL_VERTEX_ARRAY);
-
+		for(int i=0; i<100; i++){
+			myimage->draw(320+sin(sin(p)*4*M_PI*i/100)*i*2,240+cos(sin(p)*4*M_PI*i/100)*i*2);
+		}
 
 		mysprite->draw(*PIXL_Config.w*0.5+(100*cos(p*2)),*PIXL_Config.h*0.5+(100*sin(p*2)));
-
 
 		frame_count++;
 		if(frame_count==20){
@@ -846,7 +773,6 @@ PIXL_FBO *myfbo = new PIXL_FBO();
 		mystring.str("");
 		mystring << "FPS: " << fps;
 		mystring << "\n" << SDL_GetTicks()/1000.f;
-		mystring << "\nloops: " << loops;
 
 		mytext->setPos(10,10);
 		mytext->print(mystring.str().c_str());
