@@ -151,7 +151,11 @@ class PIXL_Texture {
 PIXL_Texture::PIXL_Texture(const GLvoid* d, const int w, const int h):data(d),width(w),height(h)
 {
 	glGenTextures(1, &texture);
+	//GLuint boundTexture = 0;
+	//glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint*) &boundTexture);
 	glBindTexture(GL_TEXTURE_2D, texture);
+	//glTexParameteri(GL_TEXTURE_2D, pname, param);
+	//glBindTexture(GL_TEXTURE_2D, boundTexture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_BGRA,
@@ -166,7 +170,7 @@ PIXL_Texture::PIXL_Texture(const GLvoid* d, const int w, const int h):data(d),wi
  */
 void PIXL_Texture::draw(int x=0, int y=0)
 {
-	glColor4ub(255,255,255,255);
+	glColor4f(1.f,1.f,1.f,1.f);
 
 	glEnable(GL_TEXTURE_2D);
 	glBindTexture( GL_TEXTURE_2D, texture );
@@ -178,6 +182,61 @@ void PIXL_Texture::draw(int x=0, int y=0)
 		glTexCoord2f(1.0f, 0.0f); glVertex2i(width, 0);
 	glEnd();
 	glDisable(GL_TEXTURE_2D);
+}
+
+
+/**
+ * @brief Framebuffer object
+ *
+ */
+class PIXL_FBO {
+	public:
+		PIXL_FBO();
+		virtual ~PIXL_FBO();
+		void bind();
+		void draw();
+	private:
+		//PIXL_Texture *texture;
+		GLuint FBO;
+		GLuint texture;
+};
+
+PIXL_FBO::PIXL_FBO()
+{
+// TODO checkear esto https://www.opengl.org/wiki/Framebuffer_Objects
+	glGenFramebuffers(1, &FBO);
+	glGenTextures(1, &texture);
+
+	glBindTexture( GL_TEXTURE_2D, texture);
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB, *PIXL_Config.w, *PIXL_Config.h, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+
+	if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+		puts("FBO error");
+}
+
+PIXL_FBO::~PIXL_FBO()
+{
+}
+
+void PIXL_FBO::bind()
+{
+	glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+	glClear( GL_COLOR_BUFFER_BIT );
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+}
+
+void PIXL_FBO::draw()
+{
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glBegin(GL_QUADS);
+		glTexCoord2f(0.0f, 1.0f); glVertex2i(0, 0);
+		glTexCoord2f(0.0f, 0.0f); glVertex2i(0, *PIXL_Config.h);
+		glTexCoord2f(1.0f, 0.0f); glVertex2i(*PIXL_Config.w, *PIXL_Config.h);
+		glTexCoord2f(1.0f, 1.0f); glVertex2i(*PIXL_Config.w, 0);
+	glEnd();
 }
 
 
@@ -237,33 +296,81 @@ void PIXL_Layer::clear()
 
 
 /**
- * @brief Sprite class (load png and svg)
+ * @brief Image class for Layers (png and svg )
  */
-class PIXL_Sprite {
+class PIXL_Image {
 	public:
-		PIXL_Sprite(PIXL_Layer* l, const char* f);
-		virtual ~PIXL_Sprite();
+		PIXL_Image(PIXL_Layer* l, const char* f);
+		virtual ~PIXL_Image();
 		void draw(int w, int h);
 	private:
 		cairo_surface_t* image;
 		PIXL_Layer* layer;
 };
 
-PIXL_Sprite::PIXL_Sprite(PIXL_Layer* l, const char* f)
+PIXL_Image::PIXL_Image(PIXL_Layer* l, const char* f)
 {
 	layer = l;
 	image = cairo_image_surface_create_from_png(f);
 }
 
-void PIXL_Sprite::draw(int w, int h)
+PIXL_Image::~PIXL_Image()
+{
+	cairo_surface_destroy(image);
+}
+
+void PIXL_Image::draw(int w, int h)
 {
 	cairo_set_source_surface(layer->getContext(), image, w, h);
 	cairo_paint(layer->getContext());
 }
 
+
+/**
+ * @brief Sprite class (load png and use GL quads)
+ */
+class PIXL_Sprite {
+	public:
+		PIXL_Sprite(const char* f);
+		virtual ~PIXL_Sprite();
+		void draw(int x, int y);
+	private:
+		SDL_Surface* image;
+		GLuint texture;
+};
+
+PIXL_Sprite::PIXL_Sprite(const char* f)
+{
+		image = IMG_Load(f);
+		glEnable(GL_TEXTURE_2D);
+		glGenTextures(1, &texture);
+		glBindTexture(GL_TEXTURE_2D, texture);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 15, 15, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, image->pixels);
+		glDisable(GL_TEXTURE_2D);
+}
+
 PIXL_Sprite::~PIXL_Sprite()
 {
-	cairo_surface_destroy(image);
+	SDL_FreeSurface(image);
+	glDeleteTextures(1, &texture);
+}
+
+void PIXL_Sprite::draw(int x, int y)
+{
+	glColor4f(1.f,1.f,1.f,1.f);
+
+	glEnable(GL_TEXTURE_2D);
+	glBindTexture( GL_TEXTURE_2D, texture );
+	//glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, image->w, image->h, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, image);
+	glBegin(GL_QUADS);
+		glTexCoord2f(0.0f, 0.0f); glVertex2i(x+0, y+0);
+		glTexCoord2f(0.0f, 1.0f); glVertex2i(x+0, y+image->h);
+		glTexCoord2f(1.0f, 1.0f); glVertex2i(x+image->w, y+image->h);
+		glTexCoord2f(1.0f, 0.0f); glVertex2i(x+image->w, y+0);
+	glEnd();
+	glDisable(GL_TEXTURE_2D);
 }
 
 
@@ -504,6 +611,7 @@ bool PIXL_bbc(SDL_Rect b1, SDL_Rect b2)
 ///////////////////////////////////////////////////////////////////////////////
 /**
  * Shader compile messages log
+ * TODO comparar con https://www.opengl.org/wiki/GLSL#Error_Checking
  */
 void CompileLog(GLuint *shader)
 {
@@ -600,11 +708,13 @@ PIXL_Layer *mylayer = new PIXL_Layer(*PIXL_Config.w, *PIXL_Config.h);
 
 PIXL_Text *mytext = new PIXL_Text(mylayer, "fonts/ProggyTiny.ttf", 12);
 
-PIXL_Sprite *mysprite = new PIXL_Sprite(mylayer, "bullet.png");
+PIXL_Image *myimage = new PIXL_Image(mylayer, "bullet.png");
 std::stringstream mystring;
 int frame_count=0;
 int fps=0;
 int mytime=SDL_GetTicks();
+
+PIXL_Sprite *mysprite = new PIXL_Sprite("test.png");
 
 double p; //pi phase
 	
@@ -638,24 +748,7 @@ GLuint myshader = shaders("blur.frag");
 glUniform1f((GLfloat)glGetUniformLocation(myshader, "w"), (GLfloat)*PIXL_Config.w);
 glUniform1f((GLfloat)glGetUniformLocation(myshader, "h"), (GLfloat)*PIXL_Config.h);
 
-/*
- * Frame Buffer Object
- *
- */
-
-GLuint FBO, FBO_texture;
-
-glGenFramebuffers(1, &FBO);
-glGenTextures(1, &FBO_texture);
-
-glBindTexture( GL_TEXTURE_2D, FBO_texture);
-glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
-glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
-glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB, *PIXL_Config.w, *PIXL_Config.h, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
-
-if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-	puts("FBO error");
-
+PIXL_FBO *myfbo = new PIXL_FBO();
 
 /*
  * MAIN LOOP
@@ -685,14 +778,10 @@ if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		glClear( GL_COLOR_BUFFER_BIT );
 		mylayer->clear();
 
-	//	// FBO stuff
-		glBindFramebuffer(GL_FRAMEBUFFER, FBO);
-		glClear( GL_COLOR_BUFFER_BIT );
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, FBO_texture, 0);
-////////////////fbo^^^^^
+		myfbo->bind();
 
 		//for(int i=0; i<100; i++){
-			//mysprite->draw(320+sin(sin(p)*4*M_PI*i/100)*i*2,240+cos(sin(p)*4*M_PI*i/100)*i*2);
+			//myimage->draw(320+sin(sin(p)*4*M_PI*i/100)*i*2,240+cos(sin(p)*4*M_PI*i/100)*i*2);
 		//}
 
 		//glEnable(GL_TEXTURE_2D);
@@ -725,26 +814,27 @@ if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		//glDisable(GL_POINT_SPRITE);
 		//glDisable(GL_TEXTURE_2D);
 
-		for(int i=0; i<10000; i++){
-			int x=320+sin(sin(p)*4*M_PI*i/100)*i*0.02;
-			int y=240+cos(sin(p)*4*M_PI*i/100)*i*0.02;
-			myarray[i*2]=x;
-			myarray[i*2+1]=y;
-		}
-		glEnableClientState(GL_VERTEX_ARRAY);
-		glVertexPointer(2, GL_INT, 0, myarray);
-		glEnable(GL_TEXTURE_2D);
-		glEnable(GL_POINT_SPRITE);
-		glBindTexture(GL_TEXTURE_2D, texture);
-		glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_TRUE);
-		glPointSize(15);
-		glDrawArrays(GL_POINTS, 0, 10000);
-		glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_FALSE);
-		glDisable(GL_POINT_SPRITE);
-		glDisable(GL_TEXTURE_2D);
-		glDisableClientState(GL_VERTEX_ARRAY);
+		//for(int i=0; i<10000; i++){
+			//int x=320+sin(sin(p)*4*M_PI*i/100)*i*0.02;
+			//int y=240+cos(sin(p)*4*M_PI*i/100)*i*0.02;
+			//myarray[i*2]=x;
+			//myarray[i*2+1]=y;
+		//}
+		//glEnableClientState(GL_VERTEX_ARRAY);
+		//glVertexPointer(2, GL_INT, 0, myarray);
+		//glEnable(GL_TEXTURE_2D);
+		//glEnable(GL_POINT_SPRITE);
+		//glBindTexture(GL_TEXTURE_2D, texture);
+		//glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_TRUE);
+		//glPointSize(15);
+		//glDrawArrays(GL_POINTS, 0, 10000);
+		//glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_FALSE);
+		//glDisable(GL_POINT_SPRITE);
+		//glDisable(GL_TEXTURE_2D);
+		//glDisableClientState(GL_VERTEX_ARRAY);
 
 
+		mysprite->draw(*PIXL_Config.w*0.5+(100*cos(p*2)),*PIXL_Config.h*0.5+(100*sin(p*2)));
 
 
 		frame_count++;
@@ -764,18 +854,11 @@ if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		mylayer->draw();
 
 
-
-glBindFramebuffer(GL_FRAMEBUFFER, 0);
-glBindTexture( GL_TEXTURE_2D, FBO_texture );
 		glUseProgram(myshader);
-		glBegin(GL_QUADS);
-			glTexCoord2f(0.0f, 1.0f); glVertex2i(0, 0);
-			glTexCoord2f(0.0f, 0.0f); glVertex2i(0, *PIXL_Config.h);
-			glTexCoord2f(1.0f, 0.0f); glVertex2i(*PIXL_Config.w, *PIXL_Config.h);
-			glTexCoord2f(1.0f, 1.0f); glVertex2i(*PIXL_Config.w, 0);
-		glEnd();
+		myfbo->draw();
 		glUseProgram(0);
-//*/
+
+
 		SDL_GL_SwapBuffers();
 
 		///////////////////////////////
