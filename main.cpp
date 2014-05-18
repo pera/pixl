@@ -189,29 +189,31 @@ void PIXL_Texture::draw(int x=0, int y=0)
  * @brief Framebuffer object
  *
  */
+// TODO checkear esto https://www.opengl.org/wiki/Framebuffer_Objects
 class PIXL_FBO {
 	public:
 		PIXL_FBO();
 		virtual ~PIXL_FBO();
 		void bind();
 		void draw();
-		void clear() { glClear( GL_COLOR_BUFFER_BIT ); }
+		GLuint shader;
 	private:
 		//PIXL_Texture *texture;
-		GLuint FBO;
+		GLuint fbo;
 		GLuint texture;
 };
 
 PIXL_FBO::PIXL_FBO()
 {
-// TODO checkear esto https://www.opengl.org/wiki/Framebuffer_Objects
-	glGenFramebuffers(1, &FBO);
+	shader = 0;
+
+	glGenFramebuffers(1, &fbo);
 	glGenTextures(1, &texture);
 
 	glBindTexture( GL_TEXTURE_2D, texture);
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
-	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB, *PIXL_Config.w, *PIXL_Config.h, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB, *PIXL_Config.w, *PIXL_Config.h, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 
 	if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		puts("FBO error");
@@ -223,13 +225,16 @@ PIXL_FBO::~PIXL_FBO()
 
 void PIXL_FBO::bind()
 {
-	glBindFramebuffer(GL_FRAMEBUFFER, FBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
 }
 
 void PIXL_FBO::draw()
 {
+	if(shader)
+		glUseProgram(shader);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glEnable(GL_TEXTURE_2D);
 	glBindTexture(GL_TEXTURE_2D, texture);
 	glBegin(GL_QUADS);
 		glTexCoord2f(0.0f, 1.0f); glVertex2i(0, 0);
@@ -237,6 +242,8 @@ void PIXL_FBO::draw()
 		glTexCoord2f(1.0f, 0.0f); glVertex2i(*PIXL_Config.w, *PIXL_Config.h);
 		glTexCoord2f(1.0f, 1.0f); glVertex2i(*PIXL_Config.w, 0);
 	glEnd();
+	if(shader)
+		glUseProgram(0);
 }
 
 
@@ -610,8 +617,10 @@ bool PIXL_bbc(SDL_Rect b1, SDL_Rect b2)
 
 /**
  * @brief Helper function to load a fragment shader from a file
+ *
+ * @note Includes "w" (width), "h" (height) and "sampler0" uniforms
  */
-GLuint PIXL_LoadShader(const char* filename)
+GLuint PIXL_loadShader(const char* filename)
 {
 	GLuint FragmentShader;
 	GLint linked;
@@ -701,7 +710,13 @@ int mytime=SDL_GetTicks();
 PIXL_Sprite *mysprite = new PIXL_Sprite("test.png");
 
 double p; //pi phase
-	
+
+
+/*
+ * game time stuff HACK
+ *
+ */
+
 	double t = 0.f;
 	const double dt = 1.f / 100.0f;
 
@@ -709,27 +724,17 @@ double p; //pi phase
 	double accumulator = 0.f;
 
 
-		SDL_Surface* image = IMG_Load("test.png");
-		glEnable(GL_TEXTURE_2D);
-		GLuint texture;
-		glGenTextures(1, &texture);
-		glBindTexture(GL_TEXTURE_2D, texture);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 15, 15, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, image->pixels);
-		glDisable(GL_TEXTURE_2D);
-
-int myarray[200000];
-
-
 /*
  * Shaders stuff
  *
  */
 
-GLuint myshader = PIXL_LoadShader("blur.frag");
+GLuint myshader = PIXL_loadShader("blur.frag");
 
 PIXL_FBO *myfbo = new PIXL_FBO();
+PIXL_FBO *myfbo2 = new PIXL_FBO();
+
+myfbo->shader = myshader;
 
 /*
  * MAIN LOOP
@@ -780,9 +785,10 @@ PIXL_FBO *myfbo = new PIXL_FBO();
 		mylayer->draw();
 
 
-		glUseProgram(myshader);
 		myfbo->draw();
-		glUseProgram(0);
+
+		//myfbo2->bind();
+		//myfbo2->draw();
 
 
 		SDL_GL_SwapBuffers();
