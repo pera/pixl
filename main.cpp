@@ -195,7 +195,7 @@ class PIXL_FBO {
 		PIXL_FBO();
 		virtual ~PIXL_FBO();
 		void bind();
-		void draw();
+		void draw(PIXL_FBO* target);
 		GLuint shader;
 	private:
 		//PIXL_Texture *texture;
@@ -229,11 +229,21 @@ void PIXL_FBO::bind()
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
 }
 
-void PIXL_FBO::draw()
+/**
+ * @brief RTT to the whole screen
+ *
+ * @param You may draw to another FBO (eg for multipass shaders like gaussian blur)
+ */
+void PIXL_FBO::draw(PIXL_FBO* target=NULL)
 {
 	if(shader)
 		glUseProgram(shader);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	if(target)
+		target->bind();
+	else
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 	glEnable(GL_TEXTURE_2D);
 	glBindTexture(GL_TEXTURE_2D, texture);
 	glBegin(GL_QUADS);
@@ -242,6 +252,8 @@ void PIXL_FBO::draw()
 		glTexCoord2f(1.0f, 0.0f); glVertex2i(*PIXL_Config.w, *PIXL_Config.h);
 		glTexCoord2f(1.0f, 1.0f); glVertex2i(*PIXL_Config.w, 0);
 	glEnd();
+	glDisable(GL_TEXTURE_2D);
+
 	if(shader)
 		glUseProgram(0);
 }
@@ -711,7 +723,6 @@ PIXL_Sprite *mysprite = new PIXL_Sprite("test.png");
 
 double p; //pi phase
 
-
 /*
  * game time stuff HACK
  *
@@ -723,18 +734,16 @@ double p; //pi phase
 	double currentTime = SDL_GetTicks(); //GetTicks es uint32
 	double accumulator = 0.f;
 
-
 /*
- * Shaders stuff
+ * FBO and shaders stuff
  *
  */
-
-GLuint myshader = PIXL_loadShader("blur.frag");
 
 PIXL_FBO *myfbo = new PIXL_FBO();
 PIXL_FBO *myfbo2 = new PIXL_FBO();
 
-myfbo->shader = myshader;
+myfbo->shader = PIXL_loadShader("blur.frag");
+myfbo2->shader = PIXL_loadShader("invert.frag");
 
 /*
  * MAIN LOOP
@@ -785,10 +794,9 @@ myfbo->shader = myshader;
 		mylayer->draw();
 
 
-		myfbo->draw();
+		myfbo->draw(myfbo2);
 
-		//myfbo2->bind();
-		//myfbo2->draw();
+		myfbo2->draw();
 
 
 		SDL_GL_SwapBuffers();
