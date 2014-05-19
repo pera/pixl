@@ -338,7 +338,7 @@ PIXL_Image::~PIXL_Image()
 	cairo_surface_destroy(image);
 }
 
-void PIXL_Image::draw(int w, int h)
+void PIXL_Image::draw(int w=0, int h=0)
 {
 	cairo_set_source_surface(layer->getContext(), image, w, h);
 	cairo_paint(layer->getContext());
@@ -398,14 +398,16 @@ void PIXL_Sprite::draw(int x, int y)
  */
 class PIXL_Text {
 	public:
-		PIXL_Text(PIXL_Layer* l, const char* f, uint s);
+		PIXL_Text(PIXL_Layer* l, const char* f, uint s, int x, int y);
 		virtual ~PIXL_Text();
 		void setSize(uint s) { font_size=s; }
-		void setPos(uint x, uint y) { cairo_move_to(context, x, y); };
+		void setPos(int x, int y) { pos_x=x; pos_y=y; };
 		void print(const char* text);
 	private:
 		const FcChar8 *font_name;
 		uint font_size;
+		int pos_x;
+		int pos_y;
 		FcConfig *fc; //para checkear si existe fuente
 		FcBlanks *blanks; //para errores de fuentes
 		FcPattern *pattern;
@@ -415,7 +417,7 @@ class PIXL_Text {
 		int count;
 };
 
-PIXL_Text::PIXL_Text(PIXL_Layer* l, const char* f, uint s): context(l->getContext()), font_name((const FcChar8*)f), font_size(s)
+PIXL_Text::PIXL_Text(PIXL_Layer* l, const char* f, uint s, int x=0, int y=0): context(l->getContext()), font_name((const FcChar8*)f), font_size(s), pos_x(x), pos_y(y)
 {
 	fc = FcConfigGetCurrent(); //para checkear si existe fuente
 	blanks = FcBlanksCreate(); //para errores de fuentes
@@ -438,6 +440,8 @@ PIXL_Text::~PIXL_Text(){
 }
 
 void PIXL_Text::print(const char* text){
+	cairo_move_to(context, pos_x, pos_y);
+
 	cairo_set_source_rgba(context, 1, 1, 1, 1);
 	pango_cairo_show_layout(context, layout);
 
@@ -711,7 +715,7 @@ int main(int argc, const char *argv[])
 /*****************************************************************************/
 PIXL_Layer *mylayer = new PIXL_Layer(*PIXL_Config.w, *PIXL_Config.h);
 
-PIXL_Text *mytext = new PIXL_Text(mylayer, "fonts/ProggyTiny.ttf", 12);
+PIXL_Text *mytext = new PIXL_Text(mylayer, "fonts/ProggyTiny.ttf", 12, 10, 10);
 
 PIXL_Image *myimage = new PIXL_Image(mylayer, "bullet.png");
 std::stringstream mystring;
@@ -742,8 +746,10 @@ double p; //pi phase
 PIXL_FBO *myfbo = new PIXL_FBO();
 PIXL_FBO *myfbo2 = new PIXL_FBO();
 
-myfbo->shader = PIXL_loadShader("blur.frag");
-myfbo2->shader = PIXL_loadShader("invert.frag");
+myfbo->shader = PIXL_loadShader("gbh.glsl");
+//myfbo->shader = PIXL_loadShader("blur.frag");
+myfbo2->shader = PIXL_loadShader("gbv.glsl");
+//myfbo2->shader = PIXL_loadShader("invert.frag");
 
 /*
  * MAIN LOOP
@@ -788,16 +794,12 @@ myfbo2->shader = PIXL_loadShader("invert.frag");
 		mystring << "FPS: " << fps;
 		mystring << "\n" << SDL_GetTicks()/1000.f;
 
-		mytext->setPos(10,10);
 		mytext->print(mystring.str().c_str());
 
 		mylayer->draw();
 
-
 		myfbo->draw(myfbo2);
-
 		myfbo2->draw();
-
 
 		SDL_GL_SwapBuffers();
 
