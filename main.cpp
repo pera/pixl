@@ -23,6 +23,7 @@
 #include <sstream>
 #include <string>
 #include <cmath>
+#include <assert.h>
 #include <GL/glew.h>
 #include <GL/glxew.h>
 #include <SDL/SDL.h>
@@ -366,7 +367,7 @@ PIXL_Sprite::PIXL_Sprite(const char* f)
 		glBindTexture(GL_TEXTURE_2D, texture);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 15, 15, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, image->pixels);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->w, image->h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, image->pixels);
 		glDisable(GL_TEXTURE_2D);
 }
 
@@ -390,6 +391,103 @@ void PIXL_Sprite::draw(int x, int y)
 		glTexCoord2f(1.0f, 0.0f); glVertex2i(x+image->w, y+0);
 	glEnd();
 	glDisable(GL_TEXTURE_2D);
+}
+
+
+/**
+ * @brief Sprite animation class
+ */
+class PIXL_Animation {
+	public:
+		PIXL_Animation(const char* f, uint w, uint h, uint s);
+		virtual ~PIXL_Animation();
+		void draw(int x, int y);
+		void setSpeed(uint s);
+		void play(uint new_n, bool l);
+		bool isPlaying() { return playing; }
+	private:
+		SDL_Surface* image;
+		GLuint texture;
+		uint sprite_w; // width of one single sprite
+		uint sprite_h; // height of one single sprite
+		uint m; // frame number, or column
+		uint n; // animation number, or row
+		float speed; // duration of each frame in ms
+		uint start_time;
+		bool playing;
+		bool loop;
+};
+
+PIXL_Animation::PIXL_Animation(const char* f, uint w, uint h, uint s): sprite_w(w), sprite_h(h), speed(s)
+{
+	image = IMG_Load(f);
+	m=0; // we start with the first frame
+	n=0; // and the first animation (just in case we try to draw without play() first)
+	assert(speed!=0); // speed can't be 0 because we divide by speed
+	start_time = SDL_GetTicks();
+	playing=false;
+	loop=false;
+
+	glEnable(GL_TEXTURE_2D);
+	glGenTextures(1, &texture);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->w, image->h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, image->pixels);
+	glDisable(GL_TEXTURE_2D);
+}
+
+PIXL_Animation::~PIXL_Animation()
+{
+	SDL_FreeSurface(image);
+	glDeleteTextures(1, &texture);
+}
+
+void PIXL_Animation::draw(int x, int y)
+{
+	if(playing) {
+		int frames = image->w/(int)sprite_w; // amount of frames in 
+		if(loop) {
+			m = ((SDL_GetTicks()-start_time)/(int)speed) % frames; // the modulo is not necessary since textures already repeat, but we want to have m and n
+		} else {
+			m = (SDL_GetTicks()-start_time)/(int)speed;
+			if(m>=frames) {
+				// we reached the end...
+				m=frames-1;
+				playing = false;
+			}
+		}
+	}
+
+	GLfloat vx = sprite_w/(float)image->w;
+	GLfloat vy = sprite_h/(float)image->h;
+
+	glColor4f(1.f,1.f,1.f,1.f);
+
+	glEnable(GL_TEXTURE_2D);
+	glBindTexture( GL_TEXTURE_2D, texture );
+	glBegin(GL_QUADS);
+		glTexCoord2f(m*vx, n*vy); glVertex2i(x+0, y+0);
+		glTexCoord2f(m*vx, (n+1)*vy); glVertex2i(x+0, y+sprite_h);
+		glTexCoord2f((m+1)*vx, (n+1)*vy); glVertex2i(x+sprite_w, y+sprite_h);
+		glTexCoord2f((m+1)*vx, n*vy); glVertex2i(x+sprite_w, y+0);
+	glEnd();
+	glDisable(GL_TEXTURE_2D);
+}
+
+void PIXL_Animation::setSpeed(uint s)
+{
+	assert(s!=0);
+	speed = s;
+}
+
+void PIXL_Animation::play(uint new_n, bool l=false)
+{
+	// TODO check n
+	n = new_n;
+	playing = true;
+	loop = l;
+	start_time = SDL_GetTicks();
 }
 
 
@@ -725,6 +823,9 @@ int mytime=SDL_GetTicks();
 
 PIXL_Sprite *mysprite = new PIXL_Sprite("test.png");
 
+PIXL_Animation *myanimation = new PIXL_Animation("cats.png", 23, 23, 100);
+myanimation->play(3,true);
+
 double p; //pi phase
 
 /*
@@ -778,9 +879,9 @@ myfbo2->shader = PIXL_loadShader("gbv.glsl");
 		glClear( GL_COLOR_BUFFER_BIT );
 		mylayer->clear();
 
-		for(int i=0; i<100; i++){
-			myimage->draw(320+sin(sin(p)*4*M_PI*i/100)*i*2,240+cos(sin(p)*4*M_PI*i/100)*i*2);
-		}
+		//for(int i=0; i<100; i++){
+			//myimage->draw(320+sin(sin(p)*4*M_PI*i/100)*i*2,240+cos(sin(p)*4*M_PI*i/100)*i*2);
+		//}
 
 		mysprite->draw(*PIXL_Config.w*0.5+(100*cos(p*2)),*PIXL_Config.h*0.5+(100*sin(p*2)));
 
@@ -800,6 +901,9 @@ myfbo2->shader = PIXL_loadShader("gbv.glsl");
 
 		myfbo->draw(myfbo2);
 		myfbo2->draw();
+
+
+		myanimation->draw(500,50);
 
 		SDL_GL_SwapBuffers();
 
