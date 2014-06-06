@@ -242,3 +242,51 @@ PIXL_App::PIXL_App()
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
+void PIXL_App::run()
+{
+	/*** game time stuff HACK ***/
+	double t = 0.f;
+	const double dt = 1.f / 100.0f;
+
+	double currentTime = SDL_GetTicks(); //GetTicks es uint32
+	double accumulator = 0.f;
+
+	/*** MAIN LOOP ***/
+	while(state.get() != state.quit)
+	{
+		double newTime = SDL_GetTicks();
+		double frameTime = newTime - currentTime;
+		currentTime = newTime;
+
+		accumulator += frameTime;
+
+		/*** UPDATE ***/
+		while(accumulator >= dt)
+		{
+			update();
+
+			accumulator -= dt;
+			t += dt;
+		}
+
+		/*** RENDER ***/
+		render();
+		SDL_GL_SwapBuffers();
+
+		/*** INPUT HANDLING ***/
+		input();
+	}
+}
+
+void PIXL_App::input()
+{
+	SDL_PollEvent(&event);
+	if(event.type == SDL_KEYDOWN) {
+		switch(event.key.keysym.sym) {
+			case SDLK_ESCAPE:
+				state.set(state.quit);
+				break;
+		}
+	}
+}
+

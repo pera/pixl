@@ -79,12 +79,14 @@ class PIXL_App {
 		PIXL_App();
 		~PIXL_App() { SDL_Quit(); }
 		//virtual ~PIXL_App();
-		//void run();
+		void run();
 		virtual void update() = 0;
 		virtual void render() = 0;
+		void input();
 	private:
 		SDL_Surface *screen;
 		SDL_Event event;
+		PIXL_State state;
 };
 
 

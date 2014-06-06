@@ -1,18 +1,14 @@
 #include "pixl.h"
 
-class Game: PIXL_App {
+class Game: public PIXL_App {
 	public:
 		Game();
-		void run();
 		void update();
 		void render();
 	private:
-		SDL_Event event;
-		PIXL_State state;
-		/////////////////////////////////
-
 		PIXL_Layer *mylayer;
 
+		PIXL_Layer *mylayer2;
 		PIXL_Text *mytext;
 
 		PIXL_Image *myimage;
@@ -35,7 +31,8 @@ Game::Game()
 {
 	mylayer = new PIXL_Layer(*PIXL_config.w, *PIXL_config.h);
 
-	mytext = new PIXL_Text(mylayer, "fonts/ProggyTiny.ttf", 12, 10, 10);
+	mylayer2 = new PIXL_Layer(*PIXL_config.w, *PIXL_config.h);
+	mytext = new PIXL_Text(mylayer2, "fonts/ProggyTiny.ttf", 12, 10, 10);
 
 	myimage = new PIXL_Image(mylayer, "bullet.png");
 	frame_count=0;
@@ -54,51 +51,6 @@ Game::Game()
 	myfbo2->shader = PIXL_loadShader("gbv.glsl");
 }
 
-void Game::run()
-{
-	/*** game time stuff HACK ***/
-	double t = 0.f;
-	const double dt = 1.f / 100.0f;
-
-	double currentTime = SDL_GetTicks(); //GetTicks es uint32
-	double accumulator = 0.f;
-
-	/*** MAIN LOOP ***/
-	while(state.get() != state.quit)
-	{
-		double newTime = SDL_GetTicks();
-		double frameTime = newTime - currentTime;
-		currentTime = newTime;
-
-		accumulator += frameTime;
-
-		/*** UPDATE ***/
-		while(accumulator >= dt)
-		{
-			update();
-
-			accumulator -= dt;
-			t += dt;
-		}
-
-		/*** RENDER ***/
-		render();
-		SDL_GL_SwapBuffers();
-
-		/*** INPUT HANDLING ***/
-		SDL_PollEvent(&event);
-		if(event.type == SDL_KEYDOWN)
-		{
-			switch(event.key.keysym.sym)
-			{
-				case SDLK_ESCAPE:
-					state.set(state.quit);
-					break;
-			}
-		}
-	}
-}
-
 void Game::update()
 {
 	//pi phase
@@ -113,12 +65,18 @@ void Game::render()
 
 	glClear( GL_COLOR_BUFFER_BIT );
 	mylayer->clear();
+	mylayer2->clear();
 
 	for(int i=0; i<100; i++){
 		myimage->draw(320+sin(sin(p)*4*M_PI*i/100)*i*2,240+cos(sin(p)*4*M_PI*i/100)*i*2);
 	}
 
 	mysprite->draw(*PIXL_config.w*0.5+(100*cos(p*2)),*PIXL_config.h*0.5+(100*sin(p*2)));
+
+	mylayer->draw();
+
+	myfbo->draw(myfbo2);
+	myfbo2->draw();
 
 	frame_count++;
 	if(frame_count==20){
@@ -129,16 +87,10 @@ void Game::render()
 	mystring.str("");
 	mystring << "FPS: " << fps;
 	mystring << "\n" << SDL_GetTicks()/1000.f;
-
 	mytext->print(mystring.str().c_str());
+	mylayer2->draw();
 
-	mylayer->draw();
-
-	myfbo->draw(myfbo2);
-	myfbo2->draw();
-
-
-	myanimation->draw(500,50);
+	myanimation->draw(50,50);
 }
 
 
