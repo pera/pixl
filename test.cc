@@ -211,7 +211,7 @@ void Game::render()
 	glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_TRUE);
 	glPointSize(16);
 	//draw the vbo
-	glDrawElements(GL_POINTS, 25*15, GL_UNSIGNED_BYTE, 0);
+	glDrawArrays(GL_POINTS, 0, 25*15);
 	//deactivate
 	glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_FALSE);
 	glDisable(GL_POINT_SPRITE);
