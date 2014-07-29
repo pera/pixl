@@ -132,11 +132,7 @@ Game::Game()
 	PIXL_T_map map;
 	loadMap("map.tmx", &map);
 
-/////////////////////////////////___________________________________
-
-//	glGenBuffers(1, &vboId);
-//	glBindBuffer(GL_ARRAY_BUFFER, vboId);
-//	glBufferData(GL_ARRAY_BUFFER, sizeof(myarray), myarray, GL_STATIC_DRAW);
+/////////////////////////////////___________________________________VBO
 
 	SDL_Surface* image = IMG_Load("tile.png");
 	glEnable(GL_TEXTURE_2D);
@@ -151,9 +147,11 @@ Game::Game()
 		myarray[i]=((i/2)%25)*16 +100;
 		myarray[i+1]=((i/2)/25)*16 +100;
 	}
-//	for(int i=0; i<(100*2); i+=2)
-//		printf("[tile#%.2i] x:%i y:%i\n",i/2,myarray[i],myarray[i+1]);
 
+	glGenBuffers(1, &vboId);
+	glBindBuffer(GL_ARRAY_BUFFER, vboId);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(myarray), myarray, GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 //	maplayer = new PIXL_Layer(map.size.w, map.size.h);
 //	tileset = new PIXL_Sprite(map.tileset_file.c_str()); // DANGER ?!
@@ -202,19 +200,25 @@ void Game::render()
 
 
 
-/////////////////////////////////___________________________________
+/////////////////////////////////___________________________________VBO
+	glBindBuffer(GL_ARRAY_BUFFER, vboId);
 	glEnableClientState(GL_VERTEX_ARRAY);
-	glVertexPointer(2, GL_INT, 0, myarray);
+	glVertexPointer(2, GL_INT, 0, 0);
+	//texture
 	glEnable(GL_TEXTURE_2D);
 	glEnable(GL_POINT_SPRITE);
 	glBindTexture(GL_TEXTURE_2D, ttexture);
 	glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_TRUE);
 	glPointSize(16);
-	glDrawArrays(GL_POINTS, 0, 25*15);
+	//draw the vbo
+	glDrawElements(GL_POINTS, 25*15, GL_UNSIGNED_BYTE, 0);
+	//deactivate
 	glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_FALSE);
 	glDisable(GL_POINT_SPRITE);
 	glDisable(GL_TEXTURE_2D);
 	glDisableClientState(GL_VERTEX_ARRAY);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 
