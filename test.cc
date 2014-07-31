@@ -97,9 +97,11 @@ class Game: public PIXL_App {
 		/***************/
 		/* LOADING MAP */
 		/***************/
-		int myarray[25*15*2];
+		GLint myarray[(25+1)*(15+1)*2]; // vbo array, since indices is GLushort the max size should be sizeof(GLushort) which is at least 16 bits (gl2.1 specs, table 2.2), therefore the map should not be bigger than 256x256
+		GLushort indices[(25+1)*(15+1)*4]; // ibo array
 		GLuint ttexture;
-		GLuint vboId;
+		GLuint vbo;
+		GLuint ibo;
 };
 
 Game::Game()
@@ -135,6 +137,7 @@ Game::Game()
 /////////////////////////////////___________________________________VBO
 
 	SDL_Surface* image = IMG_Load("tile.png");
+	//SDL_Surface* image = IMG_Load(map.tileset_file.c_str());
 	glEnable(GL_TEXTURE_2D);
 	glGenTextures(1, &ttexture);
 	glBindTexture(GL_TEXTURE_2D, ttexture);
@@ -143,15 +146,29 @@ Game::Game()
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 16, 16, 0, GL_RGB, GL_UNSIGNED_BYTE, image->pixels);
 	glDisable(GL_TEXTURE_2D);
 
-	for(int i=0; i<(25*15*2); i+=2){
-		myarray[i]=((i/2)%25)*16 +100;
-		myarray[i+1]=((i/2)/25)*16 +100;
+	for(int i=0; i<((25+1)*(15+1)*2); i+=2){
+		myarray[i]=((i/2)%(25+1))*16 +100;
+		myarray[i+1]=((i/2)/(25+1))*16 +100;
 	}
 
-	glGenBuffers(1, &vboId);
-	glBindBuffer(GL_ARRAY_BUFFER, vboId);
+	glGenBuffers(1, &vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(myarray), myarray, GL_STATIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	for(int i=0; i<((25+1)*(15+1)*4); i+=4){
+		indices[i]=i/4 +i/(25*4);
+		indices[i+1]=i/4+1 +i/(25*4);
+		indices[i+2]=(25+1)+i/4+1 +i/(25*4);
+		indices[i+3]=(25+1)+i/4 +i/(25*4);
+	}
+	for(int i=0;i<(25+1)*(15+1)*4;i++)
+		printf("[%.3i]: %i%c", i, indices[i], (i+1)%4?9:10);
+
+	glGenBuffers(1, &ibo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 //	maplayer = new PIXL_Layer(map.size.w, map.size.h);
 //	tileset = new PIXL_Sprite(map.tileset_file.c_str()); // DANGER ?!
@@ -201,21 +218,13 @@ void Game::render()
 
 
 /////////////////////////////////___________________________________VBO
-	glBindBuffer(GL_ARRAY_BUFFER, vboId);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glVertexPointer(2, GL_INT, 0, 0);
-	//texture
-	glEnable(GL_TEXTURE_2D);
-	glEnable(GL_POINT_SPRITE);
-	glBindTexture(GL_TEXTURE_2D, ttexture);
-	glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_TRUE);
-	glPointSize(16);
 	//draw the vbo
-	glDrawArrays(GL_POINTS, 0, 25*15);
+	glDrawElements(GL_QUADS, 25*15*4, GL_UNSIGNED_SHORT, 0);
 	//deactivate
-	glTexEnvi(GL_POINT_SPRITE, GL_COORD_REPLACE, GL_FALSE);
-	glDisable(GL_POINT_SPRITE);
-	glDisable(GL_TEXTURE_2D);
 	glDisableClientState(GL_VERTEX_ARRAY);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
