@@ -100,11 +100,11 @@ class Game: public PIXL_App {
 		struct {
 			GLint x;
 			GLint y;
-		} myarray[(25+1)*(15+1)]; // vbo array, since indices is GLushort the max size should be sizeof(GLushort) which is at least 16 bits (gl2.1 specs, table 2.2), therefore the map should not be bigger than 256x256
+		} myarray[(25+1)*(15+1)*4]; // vbo array, since indices is GLushort the max size should be sizeof(GLushort) which is at least 16 bits (gl2.1 specs, table 2.2), therefore the map should not be bigger than 256x256
 		struct {
 			GLfloat s;
 			GLfloat t;
-		} myarray2[(25+1)*(15+1)];
+		} myarray2[(25+1)*(15+1)*4];
 		GLushort indices[(25+1)*(15+1)*4]; // ibo array
 		GLuint ttexture;
 		GLuint vbo;
@@ -155,9 +155,18 @@ Game::Game()
 	glDisable(GL_TEXTURE_2D);
 
 
-	for(int i=0; i<((25+1)*(15+1)); i++){
-		myarray[i].x=(i%(25+1))*map.tile_size.w +100;
-		myarray[i].y=(i/(25+1))*map.tile_size.h +100;
+	for(int i=0; i<((25+1)*(15+1)*4); i+=4){
+		myarray[i].x = ((i/4)%25)*map.tile_size.w +100;
+		myarray[i].y = ((i/4)/25)*map.tile_size.h +100;
+
+		myarray[i+1].x = myarray[i].x;
+		myarray[i+1].y = myarray[i].y + map.tile_size.h;
+
+		myarray[i+2].x = myarray[i].x + map.tile_size.w;
+		myarray[i+2].y = myarray[i].y + map.tile_size.h;
+
+		myarray[i+3].x = myarray[i].x + map.tile_size.w;
+		myarray[i+3].y = myarray[i].y;
 	}
 
 	glGenBuffers(1, &vbo);
@@ -166,30 +175,24 @@ Game::Game()
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 
-	for(int i=0; i<((25+1)*(15+1)); i++){
-		myarray2[i].s=i%4==1||i%4==3;
-		myarray2[i].t=i%4==2||i%4==3;
-		printf("[%.3i:%.1f,%.1f] ",i,myarray2[i].s,myarray2[i].t);
+	for(int i=0; i<((25+1)*(15+1)*4); i+=4){
+		myarray2[i].s=0.f;
+		myarray2[i].t=0.f;
+
+		myarray2[i+1].s=0.f;
+		myarray2[i+1].t=1.f;
+
+		myarray2[i+2].s=1.f;
+		myarray2[i+2].t=1.f;
+
+		myarray2[i+3].s=1.f;
+		myarray2[i+3].t=0.f;
 	}
 
 	glGenBuffers(1, &vbo2);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo2);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(myarray2), myarray2, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-
-	for(int i=0; i<((25+1)*(15+1)*4); i+=4){
-		indices[i]=i/4 +i/(25*4);
-		indices[i+1]=i/4+1 +i/(25*4);
-		indices[i+2]=(25+1)+i/4+1 +i/(25*4);
-		indices[i+3]=(25+1)+i/4 +i/(25*4);
-	}
-
-	glGenBuffers(1, &ibo);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
 }
 
 void Game::update()
@@ -237,23 +240,20 @@ void Game::render()
 
 /////////////////////////////////___________________________________VBO
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glVertexPointer(2, GL_INT, 0, 0);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo2);
-		//glClientActiveTexture(GL_TEXTURE0);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, 0, 0);
 	//draw the vbo
 	glEnable(GL_TEXTURE_2D);
 	glBindTexture(GL_TEXTURE_2D, ttexture);
-	glDrawElements(GL_QUADS, 25*15*4, GL_UNSIGNED_SHORT, 0);
+	glDrawArrays(GL_QUADS, 0, 25*15*4);
 	glBindTexture(GL_TEXTURE_2D, 0);
 	glDisable(GL_TEXTURE_2D);
 	//deactivate
 	glDisableClientState(GL_VERTEX_ARRAY);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 
