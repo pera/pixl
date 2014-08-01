@@ -14,11 +14,11 @@ typedef struct {
 } PIXL_T_size;
 
 typedef struct {
-	std::vector<int> tile;
-	PIXL_T_size tile_size;
+	std::vector<int> tile; // tile number starting from 1
+	PIXL_T_size tile_size; // in pixels
 	std::string tileset_file;
-	PIXL_T_size tileset_size;
-	PIXL_T_size size;
+	PIXL_T_size tileset_size; // in tiles
+	PIXL_T_size size; // in tiles
 } PIXL_T_map;
 
 inline bool isCurrentElementX(xmlTextReaderPtr reader, const char* elem)
@@ -45,8 +45,8 @@ void loadMap(const char* filename, PIXL_T_map *map)
 
 	while(xmlTextReaderRead(reader)==1 && !isEndOfElementX(reader,"map")){
 		if(isCurrentElementX(reader,"image")){
-			map->tileset_size.w = atoi((char*)xmlTextReaderGetAttribute(reader,(xmlChar*)"width"));
-			map->tileset_size.h = atoi((char*)xmlTextReaderGetAttribute(reader,(xmlChar*)"height"));
+			map->tileset_size.w = atoi((char*)xmlTextReaderGetAttribute(reader,(xmlChar*)"width")) / map->tile_size.w;
+			map->tileset_size.h = atoi((char*)xmlTextReaderGetAttribute(reader,(xmlChar*)"height")) / map->tile_size.h;
 			map->tileset_file = std::string( (char*)xmlTextReaderGetAttribute(reader,(xmlChar*)"source") );
 		} else if(isCurrentElementX(reader,"layer")){
 			map->size.w = atoi((char*)xmlTextReaderGetAttribute(reader,(xmlChar*)"width"));
@@ -144,20 +144,21 @@ Game::Game()
 
 /////////////////////////////////___________________________________VBO
 
-	SDL_Surface* image = IMG_Load("tile.png");
-	//SDL_Surface* image = IMG_Load(map.tileset_file.c_str());
+	SDL_Surface* image = IMG_Load(map.tileset_file.c_str());
 	glEnable(GL_TEXTURE_2D);
 	glGenTextures(1, &ttexture);
 	glBindTexture(GL_TEXTURE_2D, ttexture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 16, 16, 0, GL_RGB, GL_UNSIGNED_BYTE, image->pixels);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, image->w, image->h, 0, GL_RGB, GL_UNSIGNED_BYTE, image->pixels);
 	glDisable(GL_TEXTURE_2D);
 
-
+	/****************/
+	/* VERTEX ARRAY */
+	/****************/
 	for(int i=0; i<((25+1)*(15+1)*4); i+=4){
-		myarray[i].x = ((i/4)%25)*map.tile_size.w +100;
-		myarray[i].y = ((i/4)/25)*map.tile_size.h +100;
+		myarray[i+0].x = ((i/4)%25)*map.tile_size.w +100;
+		myarray[i+0].y = ((i/4)/25)*map.tile_size.h +100;
 
 		myarray[i+1].x = myarray[i].x;
 		myarray[i+1].y = myarray[i].y + map.tile_size.h;
@@ -174,19 +175,26 @@ Game::Game()
 	glBufferData(GL_ARRAY_BUFFER, sizeof(myarray), myarray, GL_STATIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+	/*******************/
+	/* TEXCOORDS ARRAY */
+	/*******************/
+	const float w = 1.f/map.tileset_size.w;
+	const float h = 1.f/map.tileset_size.h;
+	for(int i=0; i<(25*15*4); i+=4){
+		int u = (map.tile[i/4]-1) % map.tileset_size.w;
+		int v = (map.tile[i/4]-1) / map.tileset_size.w;
 
-	for(int i=0; i<((25+1)*(15+1)*4); i+=4){
-		myarray2[i].s=0.f;
-		myarray2[i].t=0.f;
+		myarray2[i+0].s=w*u;
+		myarray2[i+0].t=h*v;
 
-		myarray2[i+1].s=0.f;
-		myarray2[i+1].t=1.f;
+		myarray2[i+1].s=w*u;
+		myarray2[i+1].t=h*v + h;
 
-		myarray2[i+2].s=1.f;
-		myarray2[i+2].t=1.f;
+		myarray2[i+2].s=w*u + w;
+		myarray2[i+2].t=h*v + h;
 
-		myarray2[i+3].s=1.f;
-		myarray2[i+3].t=0.f;
+		myarray2[i+3].s=w*u + w;
+		myarray2[i+3].t=h*v;
 	}
 
 	glGenBuffers(1, &vbo2);
