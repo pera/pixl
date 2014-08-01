@@ -28,15 +28,23 @@
 PIXL_Texture::PIXL_Texture(const GLvoid* d, const int w, const int h):data(d),width(w),height(h)
 {
 	glGenTextures(1, &texture);
-	//GLuint boundTexture = 0;
-	//glGetIntegerv(GL_TEXTURE_BINDING_2D, (GLint*) &boundTexture);
 	glBindTexture(GL_TEXTURE_2D, texture);
-	//glTexParameteri(GL_TEXTURE_2D, pname, param);
-	//glBindTexture(GL_TEXTURE_2D, boundTexture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_BGRA,
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
 				 GL_UNSIGNED_INT_8_8_8_8_REV, data);
+}
+
+void PIXL_Texture::bind()
+{
+	glEnable(GL_TEXTURE_2D);
+	glBindTexture(GL_TEXTURE_2D, texture);
+}
+
+void PIXL_Texture::unbind()
+{
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glDisable(GL_TEXTURE_2D);
 }
 
 
@@ -53,7 +61,7 @@ PIXL_FBO::PIXL_FBO()
 	glBindTexture( GL_TEXTURE_2D, texture);
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
-	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB, *PIXL_config.w, *PIXL_config.h, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, *PIXL_config.w, *PIXL_config.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
 
 	if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		puts("FBO error");

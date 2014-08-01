@@ -48,7 +48,8 @@ class PIXL_Texture {
 		const GLvoid* getData() { return data; }
 		int getWidth() { return width; }
 		int getHeight() { return height; }
-		void blit();
+		void bind();
+		void unbind();
 	private:
 		GLuint texture;
 		const GLvoid* data;

@@ -16,7 +16,7 @@ typedef struct {
 typedef struct {
 	std::vector<int> tile; // tile number starting from 1
 	PIXL_T_size tile_size; // in pixels
-	std::string tileset_file;
+	std::string tileset_file; // atlas file name
 	PIXL_T_size tileset_size; // in tiles
 	PIXL_T_size size; // in tiles
 } PIXL_T_map;
@@ -105,11 +105,9 @@ class Game: public PIXL_App {
 			GLfloat s;
 			GLfloat t;
 		} myarray2[(25+1)*(15+1)*4];
-		GLushort indices[(25+1)*(15+1)*4]; // ibo array
-		GLuint ttexture;
+		PIXL_Texture *ttexture;
 		GLuint vbo;
 		GLuint vbo2;
-		GLuint ibo;
 };
 
 Game::Game()
@@ -142,23 +140,18 @@ Game::Game()
 	PIXL_T_map map;
 	loadMap("map.tmx", &map);
 
-/////////////////////////////////___________________________________VBO
+
+	/////////////////////////////////___________________________________VBO
 
 	SDL_Surface* image = IMG_Load(map.tileset_file.c_str());
-	glEnable(GL_TEXTURE_2D);
-	glGenTextures(1, &ttexture);
-	glBindTexture(GL_TEXTURE_2D, ttexture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, image->w, image->h, 0, GL_RGB, GL_UNSIGNED_BYTE, image->pixels);
-	glDisable(GL_TEXTURE_2D);
+	ttexture = new PIXL_Texture(image->pixels, image->w, image->h);
 
 	/****************/
 	/* VERTEX ARRAY */
 	/****************/
-	for(int i=0; i<((25+1)*(15+1)*4); i+=4){
-		myarray[i+0].x = ((i/4)%25)*map.tile_size.w +100;
-		myarray[i+0].y = ((i/4)/25)*map.tile_size.h +100;
+	for(int i=0; i<((map.size.w+1)*(map.size.h+1)*4); i+=4){
+		myarray[i+0].x = ((i/4)%map.size.w)*map.tile_size.w +100;
+		myarray[i+0].y = ((i/4)/map.size.w)*map.tile_size.h +100;
 
 		myarray[i+1].x = myarray[i].x;
 		myarray[i+1].y = myarray[i].y + map.tile_size.h;
@@ -180,7 +173,7 @@ Game::Game()
 	/*******************/
 	const float w = 1.f/map.tileset_size.w;
 	const float h = 1.f/map.tileset_size.h;
-	for(int i=0; i<(25*15*4); i+=4){
+	for(int i=0; i<(map.size.w*map.size.h*4); i+=4){
 		int u = (map.tile[i/4]-1) % map.tileset_size.w;
 		int v = (map.tile[i/4]-1) / map.tileset_size.w;
 
@@ -245,21 +238,17 @@ void Game::render()
 	myanimation->draw(50,50);
 
 
+	/////////////////////////////////___________________________________VBO
 
-/////////////////////////////////___________________________________VBO
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glVertexPointer(2, GL_INT, 0, 0);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo2);
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glTexCoordPointer(2, GL_FLOAT, 0, 0);
-	//draw the vbo
-	glEnable(GL_TEXTURE_2D);
-	glBindTexture(GL_TEXTURE_2D, ttexture);
+	ttexture->bind();
 	glDrawArrays(GL_QUADS, 0, 25*15*4);
-	glBindTexture(GL_TEXTURE_2D, 0);
-	glDisable(GL_TEXTURE_2D);
-	//deactivate
+	ttexture->unbind();
 	glDisableClientState(GL_VERTEX_ARRAY);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
