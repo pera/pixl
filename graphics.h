@@ -44,12 +44,11 @@ class PIXL_Texture {
 	public:
 		PIXL_Texture(const GLvoid* d, const int w, const int h);
 		~PIXL_Texture();
-		GLuint getTarget() { return texture; }
+		GLuint getId() { return texture; }
 		const GLvoid* getData() { return data; }
 		int getWidth() { return width; }
 		int getHeight() { return height; }
 		void blit();
-		void draw(int x,int y);
 	private:
 		GLuint texture;
 		const GLvoid* data;

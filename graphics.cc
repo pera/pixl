@@ -39,29 +39,10 @@ PIXL_Texture::PIXL_Texture(const GLvoid* d, const int w, const int h):data(d),wi
 				 GL_UNSIGNED_INT_8_8_8_8_REV, data);
 }
 
+
 /**
- * @brief Render the texture object
- *
- * @param x x-position
- * @param y y-position
+ * @brief FBO class constructor
  */
-void PIXL_Texture::draw(int x=0, int y=0)
-{
-	glColor4f(1.f,1.f,1.f,1.f);
-
-	glEnable(GL_TEXTURE_2D);
-	glBindTexture( GL_TEXTURE_2D, texture );
-	glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, data);
-	glBegin(GL_QUADS);
-		glTexCoord2f(0.0f, 0.0f); glVertex2i(0, 0);
-		glTexCoord2f(0.0f, 1.0f); glVertex2i(0, height);
-		glTexCoord2f(1.0f, 1.0f); glVertex2i(width, height);
-		glTexCoord2f(1.0f, 0.0f); glVertex2i(width, 0);
-	glEnd();
-	glDisable(GL_TEXTURE_2D);
-}
-
-
 PIXL_FBO::PIXL_FBO()
 {
 	shader = 0;
@@ -139,7 +120,18 @@ PIXL_Layer::PIXL_Layer(int w, int h): width(w), height(h)
 void PIXL_Layer::draw()
 {
 	cairosdl_surface_flush(layer); 
-	texture->draw();
+	glColor4f(1.f,1.f,1.f,1.f);
+
+	glEnable(GL_TEXTURE_2D);
+	glBindTexture( GL_TEXTURE_2D, texture->getId() );
+	glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, texture->getData());
+	glBegin(GL_QUADS);
+		glTexCoord2f(0.0f, 0.0f); glVertex2i(0, 0);
+		glTexCoord2f(0.0f, 1.0f); glVertex2i(0, height);
+		glTexCoord2f(1.0f, 1.0f); glVertex2i(width, height);
+		glTexCoord2f(1.0f, 0.0f); glVertex2i(width, 0);
+	glEnd();
+	glDisable(GL_TEXTURE_2D);
 }
 
 void PIXL_Layer::clear()
